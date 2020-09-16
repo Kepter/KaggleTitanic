@@ -3,78 +3,71 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import seaborn
+import sklearn
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from matplotlib import pyplot as plt
 
 train = pd.read_csv('./train.csv')
 test = pd.read_csv('./test.csv')    
 
 # 'PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin', 'Embarked'
 
-# Numeric value analysis for Q7
 train.describe()
-
-# Categorical value analysis for Q8
 train.describe(include=['O'])
 
-# Survival rate based on Pclass for Q9
 train[['Pclass', 'Survived']].groupby(['Pclass']).mean()
-
-# Survival rate based on Sex for Q10
 train[["Sex", "Survived"]].groupby(['Sex']).mean()
 
-# Plots for age vs number of survived = 1 and age vs number of survived = 0 for Q11
 histogram = seaborn.FacetGrid(train, col='Survived')
 histogram.map(plt.hist, 'Age', bins=50)
 histogram.savefig("AgeVsSurival.png")
 
-# Plots for age vs survived vs pclass for Q12
 histogram2 = seaborn.FacetGrid(train, col='Survived', row='Pclass')
 histogram2.map(plt.hist, 'Age', bins=50)
 histogram2.add_legend()
 histogram2.savefig("AgeVsPclassVsSurvival.png")
 
-# Plots for Fare vs Sex Vs Embarked Vs survived for Q13
 histogram3 = seaborn.FacetGrid(train, row='Embarked', col='Survived')
 histogram3.map(seaborn.barplot, 'Sex', 'Fare')
 histogram3.add_legend()
 histogram3.savefig("FareSexEmbarkedSurvived.png")
 
-# Drop Ticket and Cabin for Q14 and Q15
-train = train.drop(['Ticket', 'Cabin'], axis=1)
-test = test.drop(['Ticket', 'Cabin'], axis=1)
+train = train.drop(['Ticket', 'Cabin', 'Name', 'PassengerId'], axis=1)
+test = test.drop(['Ticket', 'Cabin', 'Name', 'PassengerId'], axis=1)
 
-# Combine data and change Sex to numeric for Q16
 combine = [train, test]
 for data in combine:
-    data['Sex'] = data['Sex'].map({'female': 1, 'male': 0}).astype(int)
+    data['Gender'] = data['Sex'].map({'female': 1, 'male': 0}).astype(int)
 
-# Fill in missing ages using nearest neighbor with Sex and Pclass for Q17
+combine[0] = combine[0].drop(['Sex'], axis=1)
+combine[1] = combine[1].drop(['Sex'], axis=1)
+
 avg_age = np.zeros((3, 2))
 for data in combine:
     # Precompute nearest age for each combination
     for pclass in range(1, 4):
         for sex in range(0, 2):
-            ages = data[(data['Pclass'] == pclass) & (data['Sex'] == sex)]['Age'].dropna()
+            ages = data[(data['Pclass'] == pclass) & (data['Gender'] == sex)]['Age'].dropna()
             avg_age[pclass-1][sex] = math.floor(ages.median())
 
     # Fill missing ages based on pclass and sex
     for pclass in range(1, 4):
         for sex in range(0, 2):
-            data.loc[(data['Pclass'] == pclass) & (data['Sex'] == sex) & (data['Age'].isnull()), 'Age'] = avg_age[pclass-1][sex]
+            data.loc[(data['Pclass'] == pclass) & (data['Gender'] == sex) & (data['Age'].isnull()), 'Age'] = avg_age[pclass-1][sex]
 
     data['Age'] = data['Age'].astype(int)
 
-# Fill in missing embarked using most common occurence for Q18
 for data in combine:
     mode = data['Embarked'].dropna().mode()[0]
     data.loc[(data['Embarked'].isnull()), 'Embarked'] = mode
     data['Embarked'] = data['Embarked'].astype(str)
 
-# Fill in missing fare value with most commmon for Q19
 for data in combine:
     data.loc[(data['Fare'].isnull()), 'Fare'] = data['Fare'].dropna().mode()[0]
     data['Fare'] = data['Fare'].astype(float)
 
-# Put Fare into bands for Q20
 for data in combine:
     data.loc[(data['Fare'] <= 7.91), 'Fare'] = 0
     data.loc[(data['Fare'] > 7.91) & (data['Fare'] <= 14.454), 'Fare'] = 1
@@ -82,3 +75,91 @@ for data in combine:
     data.loc[(data['Fare'] > 31), 'Fare'] = 3
 
     data['Fare'] = data['Fare'].astype(int)
+
+for data in combine:
+    data['Relatives'] = data['SibSp'] + data['Parch']
+    data['Relatives'] = data['Relatives'].astype(int)
+
+    data = data.drop(['SibSp', 'Parch'], axis=1)
+
+combine[0] = combine[0].drop(['SibSp', 'Parch'], axis=1)
+combine[1] = combine[1].drop(['SibSp', 'Parch'], axis=1)
+
+for data in combine:
+    data.loc[(data['Embarked'] == 'S'), 'Embarked'] = 0
+    data.loc[(data['Embarked'] == 'C'), 'Embarked'] = 1
+    data.loc[(data['Embarked'] == 'Q'), 'Embarked'] = 2
+
+for data in combine:
+    data.loc[(data['Age'] <= 10), 'Age'] = 0
+    data.loc[(data['Age'] > 10) & (data['Age'] <= 20), 'Age'] = 1
+    data.loc[(data['Age'] > 20) & (data['Age'] <= 30), 'Age'] = 2
+    data.loc[(data['Age'] > 30) & (data['Age'] <= 40), 'Age'] = 3
+    data.loc[(data['Age'] > 40) & (data['Age'] <= 60), 'Age'] = 4
+    data.loc[(data['Age'] > 60), 'Age'] = 5
+
+# Prepare training data
+x_train = combine[0].drop(['Survived'], axis=1)
+y_train = combine[0]['Survived']
+
+# Create decision tree based on data
+dec_tree = DecisionTreeClassifier()
+dec_tree.fit(x_train, y_train)
+
+dec_tree_train_acc = dec_tree.score(x_train, y_train)
+
+# Plot decision tree
+feat_names = ['Pclass', 'Age', 'Fare', 'Embarked', 'Gender', 'Relatives']
+class_names = ['Not Survived', 'Survived']
+dec_tree_plot = plt.figure(figsize=(100,100))
+_ = tree.plot_tree(dec_tree, feature_names=feat_names, class_names=class_names, filled=True)
+dec_tree_plot.savefig("decision_tree")
+
+# Create Random Forest based on data
+rand_forest = RandomForestClassifier()
+rand_forest.fit(x_train, y_train)
+
+rand_forest_train_acc = rand_forest.score(x_train, y_train)
+
+# Apply five-fold cross validation to decision tree
+combine = combine[0]
+split_size = int(len(combine) / 5)
+running_acc = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
+
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    dec_tree = DecisionTreeClassifier()
+    dec_tree.fit(x_train, y_train)
+    running_acc = running_acc + dec_tree.score(x_test, y_test)
+
+dec_tree_avg_accuracy = running_acc / 5
+
+# Apply five-fold cross validation to random forest
+running_acc = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
+
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    rand_forest = RandomForestClassifier()
+    rand_forest.fit(x_train, y_train)
+    running_acc = running_acc + rand_forest.score(x_test, y_test)
+
+rand_forest_avg_accuracy = running_acc / 5
+
+
+
