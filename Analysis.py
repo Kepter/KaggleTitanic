@@ -4,9 +4,11 @@ import math
 import matplotlib.pyplot as plt
 import seaborn
 import sklearn
+import KNN
 from sklearn import tree
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
 from matplotlib import pyplot as plt
 
 train = pd.read_csv('./train.csv')
@@ -161,5 +163,99 @@ for itr in range(5):
 
 rand_forest_avg_accuracy = running_acc / 5
 
+# Create Naive Bayes classifier and test with 5-fold cross validation
+running_acc = 0
+running_prec = 0
+running_rec = 0
+running_f1 = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
 
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    nb = GaussianNB()
+    nb.fit(x_train, y_train)
+
+    # Calculate stats
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    y_pred = nb.predict(x_test)
+    y_test = y_test.tolist()
+    for i in range(len(y_pred)):
+        if (y_pred[i] == y_test[i]):
+            if y_pred[i] == 1:
+                tp += 1
+            else:
+                tn += 1
+        else:
+            if y_pred[i] == 1:
+                fp += 1
+            else:
+                fn += 1
+
+    acc = (tp+tn)/(tp+fp+fn+tn)
+    prec = tp/(tp+fp)
+    rec = tp/(tp+fn)
+    f1 = (2 * rec * prec / (rec + prec))
+    print("ITR: ", itr, " ACC: ", acc, " PREC: ", prec, " RECALL: ", rec, " F1: ", f1)
+
+    running_acc += acc
+    running_prec += prec
+    running_rec += rec
+    running_f1 += f1
+
+running_acc /= 5
+running_prec /= 5
+running_rec /= 5
+running_f1 /= 5
+
+# Create custom KNN and test with values of k from 1 to 20
+custom_knn = KNN.KNN()
+
+x_test = combine[0 : split_size]
+y_test = x_test['Survived']
+x_test = x_test.drop(['Survived'], axis=1)
+
+x_train = combine[split_size+1:]
+y_train = x_train['Survived']
+x_train = x_train.drop(['Survived'], axis=1)
+
+x_test = x_test.values.tolist()
+y_test = y_test.values.tolist()
+x_train = x_train.values.tolist()
+y_train = y_train.values.tolist()
+
+custom_knn.fit(x_train, y_train)
+for k in range(40):
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    for i in range(len(x_test)):
+        pred = custom_knn.predict(x_test[i], k+1)
+
+        if (pred == y_test[i]):
+            if pred == 1:
+                tp += 1
+            else:
+                tn += 1
+        else:
+            if pred == 1:
+                fp += 1
+            else:
+                fn += 1
+    
+    acc = (tp+tn)/(tp+fp+fn+tn)
+    prec = tp/(tp+fp)
+    rec = tp/(tp+fn)
+    f1 = (2 * rec * prec / (rec + prec))
+    print("K: ", k+1, " ACC: ", acc, " PREC: ", prec, " RECALL: ", rec, " F1: ", f1)
 
