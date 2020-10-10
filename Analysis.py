@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn
 import sklearn
 import KNN
-from sklearn import tree
+from sklearn import tree, svm
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -259,3 +259,59 @@ for k in range(40):
     f1 = (2 * rec * prec / (rec + prec))
     print("K: ", k+1, " ACC: ", acc, " PREC: ", prec, " RECALL: ", rec, " F1: ", f1)
 
+# Apply five-fold cross validation to SVM using linear kernel
+running_acc = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
+
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    svm_linear = svm.SVC(kernel='linear')
+    svm_linear.fit(x_train, y_train)
+    running_acc = running_acc + svm_linear.score(x_test, y_test)
+
+svm_linear_acc = running_acc / 5
+
+# Apply five-fold cross validation to SVM using quadratic kernel
+running_acc = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
+
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    svm_linear = svm.SVC(kernel='poly', degree=2)
+    svm_linear.fit(x_train, y_train)
+    running_acc = running_acc + svm_linear.score(x_test, y_test)
+
+svm_quad_acc = running_acc / 5
+
+# Apply five-fold cross validation to SVM using rbf kernel
+running_acc = 0
+for itr in range(5):
+    # 1/5 of data as test
+    x_test = combine[itr * split_size : (itr+1) * split_size]
+    y_test = x_test['Survived']
+    x_test = x_test.drop(['Survived'], axis=1)
+
+    # 4/5 of data as train
+    x_train = pd.concat([combine[0 : max(itr * split_size - 1, 0)], combine[(itr+1) * split_size + 1 :]])
+    y_train = x_train['Survived']
+    x_train = x_train.drop(['Survived'], axis=1)
+
+    svm_linear = svm.SVC(kernel='rbf')
+    svm_linear.fit(x_train, y_train)
+    running_acc = running_acc + svm_linear.score(x_test, y_test)
+
+svm_rbf_acc = running_acc / 5
